@@ -227,7 +227,7 @@ def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['OXWALK'], overw
         Y += Ys
         T += Ts
         P += Ps
-        S += (source, ) * len(Xs)
+        S += (source, ) * len(np.hstack(Ys))
 
     X = np.vstack(X)
     Y = np.hstack(Y)
