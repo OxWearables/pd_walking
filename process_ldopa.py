@@ -161,7 +161,7 @@ def label_participant_data(subject, taskRefFile, taskDictionary, accdir, outdir)
         for _, task in participantTasks.iterrows():
             startTime, endTime = task[["timestamp_start", "timestamp_end"]]
             mask = (accFile.index > startTime) & (accFile.index <= endTime)
-            accFile.loc[mask, 'annotation'] = taskDictionary[task["task_code"]]
+            accFile.loc[mask, 'annotation'] = taskDictionary.loc[task["task_code"], 'is-walking']
 
         walkingLabels = accFile['annotation']
         walkingLabels.to_csv(labelFilePath)
