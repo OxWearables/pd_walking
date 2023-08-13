@@ -109,7 +109,7 @@ def label_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
     subjects = taskRefFile["subject_id"].unique()
     
     outdir = os.path.join(PROCESSED_DIR, 'raw_labels')
-    os.makedirs(outdir)
+    os.makedirs(outdir, exist_ok=True)
     
     if len(glob(os.path.join(outdir, '*.csv'))) != len(subjects):
         taskDictionary = build_task_dictionary(datadir, processeddir)
@@ -146,7 +146,7 @@ def is_walking_given_description(description):
 
 
 def label_participant_data(subject, taskRefFile, taskDictionary, accdir, outdir):
-    os.makedirs(outdir)
+    os.makedirs(outdir, exist_ok=True)
     labelFilePath = os.path.join(outdir, f"{subject}.csv")
     accFilePath = os.path.join(accdir, f"{subject}.csv")
 
