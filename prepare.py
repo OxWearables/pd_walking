@@ -26,6 +26,7 @@ SOURCE_ARGS = {
             'sample_rate': 100
         },
         'make_windows_args': {
+            'sample_rate': 100,
             'label_type': 'threshold',
             'step_tol': 0.4
         }
@@ -35,6 +36,7 @@ SOURCE_ARGS = {
             'sample_rate': 50
         },
         'make_windows_args': {
+            'sample_rate': 50,
             'label_type': 'mode'
         }
     }
@@ -212,7 +214,7 @@ def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['OXWALK'], overw
         print(f"Using files saved at \"{outdir}\".")
         return
 
-    X, Y, T, P, S = [], [], [], [], []
+    X, Y, T, P, S = (), (), (), (), ()
 
     for source in sources:
         datafiles = glob(os.path.join(datadir, DATAFILES[source]))
@@ -221,12 +223,11 @@ def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['OXWALK'], overw
             delayed(load_and_make_windows)(datafile, source) 
                 for datafile in tqdm(datafiles, desc=f"Load all and make windows - {source}")))
 
-        X.append(Xs)
-        Y.append(Ys)
-        T.append(Ts)
-        P.append(Ps)
-        S.append([source] * len(Xs))
-
+        X += Xs
+        Y += Ys
+        T += Ts
+        P += Ps
+        S += (source, ) * len(Xs)
 
     X = np.vstack(X)
     Y = np.hstack(Y)
