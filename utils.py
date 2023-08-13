@@ -1,5 +1,6 @@
 import os
 import pickle
+from datetime import datetime
 
 
 def save_dict(dict, savefile):
@@ -56,3 +57,7 @@ def load_environment_vars(env_strings=[]):
         raise ValueError(f"Please set the following environment variable(s) in the .env file: {missing_envs_str}")
 
     return tuple(env_values)
+
+
+def parse_datetime_from_timestamp(time_in_secs):    
+    return datetime.fromtimestamp(float(time_in_secs))

@@ -17,6 +17,7 @@ import synapseclient
 import synapseutils
 
 from features import extract_features
+from process_ldopa import build_acc_data, label_acc_data
 from utils import check_files_exist, get_first_file, load_environment_vars
 
 STEP_TOL = 0.4
@@ -59,38 +60,37 @@ def download_oxwalk(datadir, overwrite=False):
         print(f"Using saved OxWalk data at \"{datadir}\".")
 
 
-def download_ldopa(datadir, overwrite=False):
-    datadir = os.path.join(datadir, 'Ldopa')
-    if overwrite or (len(glob(os.path.join(datadir, '*.csv'))) < len(LDOPA_DOWNLOADS)) or \
-        (len(glob(os.path.join(datadir, 'GENEActiv', '*'))) < 28):
+def download_ldopa(datadir, overwrite=False, n_jobs=10):
+    ldopa_datadir = os.path.join(datadir, 'LDOPA_DATA')
+    if overwrite or (len(glob(os.path.join(ldopa_datadir, '*.csv'))) < len(LDOPA_DOWNLOADS)):
         print("Downloading data...\n")
         syn = synapseclient.login(
             USERNAME,
             apiKey = APIKEY
         )
-        os.makedirs(datadir, exist_ok=True)
+        os.makedirs(ldopa_datadir, exist_ok=True)
         for tableName, tableId in tqdm(LDOPA_DOWNLOADS):
             syn.tableQuery(f"select * from {tableId}", includeRowIdAndRowVersion=False, 
-                           downloadLocation=os.path.join(datadir, tableName))
+                           downloadLocation=os.path.join(ldopa_datadir, tableName))
 
         for tName, _ in tqdm(LDOPA_DOWNLOADS):
-            copyfile(get_first_file(datadir, tName), os.path.join(datadir, f'{tName}.csv'))
-            rmtree(os.path.join(datadir, tName))
+            copyfile(get_first_file(ldopa_datadir, tName), os.path.join(ldopa_datadir, f'{tName}.csv'))
+            rmtree(os.path.join(ldopa_datadir, tName))
 
+    else:
+        print(f"Using saved Levodopa Reponse study dictionary data at \"{ldopa_datadir}\".")
+
+
+    if len(glob(os.path.join(ldopa_datadir, 'GENEActiv', '*'))) < 28:
         synapseutils.syncFromSynapse(syn, entity='syn20681023', path=datadir)
 
     else:
-        print(f"Using saved Levodopa Reponse study data at \"{datadir}\".")
+        print(f"Using saved Levodopa Reponse study accelerometery data at \"{ldopa_datadir}\".")
 
+    processeddir = os.path.join(datadir, 'Ldopa_Processed')
+    build_acc_data(ldopa_datadir, processeddir, n_jobs)
+    label_acc_data(ldopa_datadir, processeddir, n_jobs)
 
-def download_ldopa_table(syn, tableId, tableSaveName, dataFolder):
-    query = f"select * from {tableId}"
-    results = syn.tableQuery(query, includeRowIdAndRowVersion=False, downloadLocation=dataFolder + tableSaveName)
-    return results
-
-
-def transform_ldopa(datadir):
-    return
 
 def load_data(datafile, sample_rate=100, index_col='timestamp', annot_type='int'):
     if '.parquet' in datafile:
@@ -243,7 +243,7 @@ if __name__ == '__main__':
         download_oxwalk(args.datadir, args.overwrite)
     
     if 'ldopa' in sources:
-        download_ldopa(args.datadir, args.overwrite)
+        download_ldopa(args.datadir, args.overwrite, args.n_jobs)
 
     load_all_and_make_windows(args.datadir, args.outdir, args.n_jobs,
                               sources, args.overwrite, winsec=args.winsec)
