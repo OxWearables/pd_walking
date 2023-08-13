@@ -13,7 +13,10 @@ from utils import flatten_list
 def evaluate_model(model_type, X, y, groups, train_mask=None, test_mask=None, 
                    cv=0, n_jobs=None, outFilePath='', **kwargs):
     if train_mask is not None:
-        X, y, P = X[train_mask], y[train_mask], P[train_mask]
+        X_train, y_train, groups_train = X[train_mask], y[train_mask], groups[train_mask]
+
+    else:
+        X_train, y_train, groups_train = X, y, groups
 
     if cv == 0:
         if test_mask is not None:
@@ -23,14 +26,18 @@ def evaluate_model(model_type, X, y, groups, train_mask=None, test_mask=None,
             X_test = X
         
         model = Classifier(model_type, **kwargs)
-        model.fit(X, y)
+        model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
     elif cv > 0:
-        y_pred = cross_val_predict(model_type, X, y, groups=groups, cv=cv, n_jobs=n_jobs, **kwargs)
+        y_pred = cross_val_predict(model_type, X_train, y_train, groups=groups_train, cv=cv, n_jobs=n_jobs, **kwargs)
 
         if test_mask is not None:
-            y_pred = y_pred[test_mask]
+            if train_mask is not None:
+                y_pred = y_pred[test_mask[train_mask]]
+            
+            else:
+                y_pred = y_pred[test_mask]
     
     else:
         raise ValueError("cv must be natural number")
