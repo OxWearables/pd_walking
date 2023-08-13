@@ -20,8 +20,29 @@ from features import extract_features
 from process_ldopa import build_acc_data, label_acc_data
 from utils import check_files_exist, get_first_file, load_environment_vars
 
-STEP_TOL = 0.4
-OXWALK_DATAFILES = 'OxWalk_Dec2022/Wrist_100Hz/P[0-9][0-9]_wrist100.csv'
+SOURCE_ARGS = {
+    'OXWALK': {
+        'load_data_args': {
+            'sample_rate': 100
+        },
+        'make_windows_args': {
+            'label_type': 'threshold',
+            'step_tol': 0.4
+        }
+    },
+    'LDOPA': {
+        'load_data_args': {
+            'sample_rate': 50
+        },
+        'make_windows_args': {
+            'label_type': 'mode'
+        }
+    }
+}
+DATAFILES = {
+    'OXWALK': 'OxWalk_Dec2022/Wrist_100Hz/P[0-9][0-9]_wrist100.csv',
+    'LDOPA': 'Ldopa_Processed/acc_data/*.csv'
+}
 LDOPA_DOWNLOADS = [
     ["UPDRSResponses", "syn20681939"],
     ["TaskScoresPartII", "syn20681938"],
@@ -36,6 +57,7 @@ LDOPA_DOWNLOADS = [
 ]
 USERNAME, APIKEY = load_environment_vars(["SYNAPSE_USERNAME", "SYNAPSE_APIKEY"])
 
+
 def download_oxwalk(datadir, overwrite=False):
     """ Download and extract the OxWalk dataset """
     if overwrite or not os.path.exists(os.path.join(datadir, 'OxWalk_Dec2022.zip')):
@@ -48,10 +70,10 @@ def download_oxwalk(datadir, overwrite=False):
             urllib.urlretrieve(url, filename=os.path.join(datadir, "OxWalk_Dec2022.zip"),
                                reporthook=lambda b, bsize, tsize: pbar.update(bsize))
 
-    if overwrite or len(glob(os.path.join(datadir, OXWALK_DATAFILES))) < 39:
+    if overwrite or len(glob(os.path.join(datadir, DATAFILES['OXWALK']))) < 39:
         with zipfile.ZipFile(os.path.join(datadir, "OxWalk_Dec2022.zip"), "r") as f:
             for member in tqdm(f.namelist(), desc="Unzipping"):
-                if re.match(OXWALK_DATAFILES, member):
+                if re.match(DATAFILES['OXWALK'], member):
                     try:
                         f.extract(member, datadir)
                     except zipfile.error:
@@ -120,7 +142,7 @@ def resize(x, length, axis=1):
     return x
 
 
-def make_windows(data, winsec=30, sample_rate=100, resample_rate=30, 
+def make_windows(data, winsec=10, sample_rate=100, resample_rate=30, 
                  label_type='threshold', dropna=True, verbose=False, step_tol=0.4):
     X, Y, T = [], [], []
     
@@ -184,38 +206,33 @@ def is_good_window(x, sample_rate, winsec):
     return True
 
 
-def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['oxwalk'], overwrite=False, **kwargs):
+def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['OXWALK'], overwrite=False):
     """ Make windows from all available data, extract features and store locally """
     if not overwrite and check_files_exist(outdir, ['X.npy', 'Y.npy', 'T.npy', 'P.npy', 'S.npy']):
         print(f"Using files saved at \"{outdir}\".")
         return
 
-    def worker(datafile):
-        X, Y, T = make_windows(load_data(datafile), **kwargs)
+    X, Y, T, P, S = [], [], [], [], []
 
-        pid = Path(datafile)
+    for source in sources:
+        datafiles = glob(os.path.join(datadir, DATAFILES[source]))
 
-        for _ in pid.suffixes:
-            pid = Path(pid.stem)
+        Xs, Ys, Ts, Ps = zip(*Parallel(n_jobs=n_jobs)(
+            delayed(load_and_make_windows)(datafile, source) 
+                for datafile in tqdm(datafiles, desc=f"Load all and make windows - {source}")))
 
-        pid = str(pid)
-
-        P = np.array([pid] * len(X))
-
-        return X, Y, T, P
-
-    datafiles = glob(os.path.join(datadir, OXWALK_DATAFILES))
-
-    X, Y, T, P = zip(*Parallel(n_jobs=n_jobs)(
-        delayed(worker)(datafile) 
-        for datafile in tqdm(datafiles, desc="Load all and make windows")))
+        X.append(Xs)
+        Y.append(Ys)
+        T.append(Ts)
+        P.append(Ps)
+        S.append([source] * len(Xs))
 
 
     X = np.vstack(X)
     Y = np.hstack(Y)
     T = np.hstack(T)
     P = np.hstack(P)
-    S = sources * len(X)
+    S = np.hstack(S)
 
     X_feats = pd.DataFrame(Parallel(n_jobs=n_jobs)(delayed(extract_features)(x) for x in tqdm(X, desc="Extracting features")))
 
@@ -228,22 +245,38 @@ def load_all_and_make_windows(datadir, outdir, n_jobs, sources=['oxwalk'], overw
     X_feats.to_pickle(os.path.join(outdir, 'X_feats.pkl'))
 
 
+def load_and_make_windows(datafile, source):
+    X, Y, T = make_windows(load_data(datafile, **SOURCE_ARGS[source]['load_data_args']), 
+                           **SOURCE_ARGS[source]['make_windows_args'])
+
+    pid = Path(datafile)
+
+    for _ in pid.suffixes:
+        pid = Path(pid.stem)
+
+    pid = str(pid)
+    
+    P = np.array([pid] * len(X))
+
+    return X, Y, T, P
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--datadir', '-d', default='data')
     parser.add_argument('--outdir', '-o', default='prepared_data')
     parser.add_argument('--sources', '-s', default='oxwalk,ldopa')
-    parser.add_argument('--winsec', type=int, default=10)
     parser.add_argument('--n_jobs', type=int, default=10)
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
 
-    sources = args.sources.split(',')
-    if 'oxwalk' in sources:
+    sources = args.sources.upper().split(',')
+    
+    if 'OXWALK' in sources:
         download_oxwalk(args.datadir, args.overwrite)
     
-    if 'ldopa' in sources:
+    if 'LDOPA' in sources:
         download_ldopa(args.datadir, args.overwrite, args.n_jobs)
 
     load_all_and_make_windows(args.datadir, args.outdir, args.n_jobs,
-                              sources, args.overwrite, winsec=args.winsec)
+                              sources, args.overwrite)
