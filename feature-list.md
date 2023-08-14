@@ -1,4 +1,5 @@
 # Hand Crafted Features List
+
 The table below presents an overview of the hand crafted features that have been curated as inputs for the Random Forest model. 
 These features are extracted from the Euclidean norm of the triaxial accelerometer data, minus 1 to remove gravity.
 

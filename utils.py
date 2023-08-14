@@ -10,7 +10,7 @@ def flatten_list(my_list):
 
 
 def save_dict(dict, savefile):
-    """ Save dict file as .pkl """
+    """Save dict file as .pkl"""
     file_extension = savefile.rsplit(".", 1)[-1].lower()
 
     if file_extension == "pkl":
@@ -19,7 +19,7 @@ def save_dict(dict, savefile):
         if dirname:
             os.makedirs(dirname, exist_ok=True)
 
-        with open(savefile, 'wb') as file:
+        with open(savefile, "wb") as file:
             pickle.dump(dict, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     else:
@@ -27,11 +27,11 @@ def save_dict(dict, savefile):
 
 
 def load_dict(savefile):
-    """ Load .pkl file as dict """
+    """Load .pkl file as dict"""
     file_extension = savefile.rsplit(".", 1)[-1].lower()
 
     if file_extension == "pkl":
-        with open(savefile, 'rb') as file:
+        with open(savefile, "rb") as file:
             return pickle.load(file)
 
     else:
@@ -39,17 +39,19 @@ def load_dict(savefile):
 
 
 def check_files_exist(dir, files):
-    """ Ensure all expected files exist in dir """
+    """Ensure all expected files exist in dir"""
     return all(os.path.exists(os.path.join(dir, file)) for file in files)
 
 
 def ordered_unique(x):
-    """ Return unique elements, maintaining order of appearance """
+    """Return unique elements, maintaining order of appearance"""
     return x[np.sort(np.unique(x, return_index=True)[1])]
 
 
 def get_first_file(dataFolder, folderName):
-    return os.path.join(dataFolder, folderName, os.listdir(os.path.join(dataFolder, folderName))[0])
+    return os.path.join(
+        dataFolder, folderName, os.listdir(os.path.join(dataFolder, folderName))[0]
+    )
 
 
 def load_environment_vars(env_strings=[]):
@@ -64,11 +66,13 @@ def load_environment_vars(env_strings=[]):
             env_values.append(env_value)
 
     if missing_envs:
-        missing_envs_str = ', '.join(missing_envs)
-        raise ValueError(f"Please set the following environment variable(s) in the .env file: {missing_envs_str}")
+        missing_envs_str = ", ".join(missing_envs)
+        raise ValueError(
+            f"Please set the following environment variable(s) in the .env file: {missing_envs_str}"
+        )
 
     return tuple(env_values)
 
 
-def parse_datetime_from_timestamp(time_in_secs):    
+def parse_datetime_from_timestamp(time_in_secs):
     return datetime.fromtimestamp(float(time_in_secs))
