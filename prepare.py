@@ -17,7 +17,7 @@ import synapseclient
 import synapseutils
 
 from features import extract_features
-from process_ldopa import build_acc_data, label_acc_data
+from process_ldopa import build_metadata, build_acc_data, label_acc_data
 from utils import check_files_exist, get_first_file, load_environment_vars
 
 SOURCE_ARGS = {
@@ -125,6 +125,7 @@ def download_ldopa(datadir, overwrite=False, n_jobs=10):
         )
 
     processeddir = os.path.join(datadir, "Ldopa_Processed")
+    build_metadata(ldopa_datadir, processeddir)
     build_acc_data(ldopa_datadir, processeddir, n_jobs)
     label_acc_data(ldopa_datadir, processeddir, n_jobs)
 

@@ -12,6 +12,26 @@ PROCESSED_DIR = "Data/Ldopa_Processed/"
 N_JOBS = 8
 
 
+def build_metadata(datadir=RAW_DIR, processeddir=PROCESSED_DIR):
+    metadata = pd.read_csv(
+        os.path.join(datadir, "MetadataOfPatientOnboarding.csv"), index_col=[0]
+    )
+
+    updrs_cols = [
+        "updrs_score_p1",
+        "updrs_score_p2",
+        "updrs_score_p3",
+        "updrs_score_p4",
+        "updrs_second_visit_score_p3",
+    ]
+
+    metadata["MeanUPDRS"] = metadata[updrs_cols].mean(axis=1)
+
+    metadata = metadata[["gender", "MeanUPDRS"]]
+
+    metadata.to_csv(os.path.join(processeddir, "Metadata.csv"))
+
+
 def build_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
     subjects = build_task_reference_file(datadir, processeddir)["subject_id"].unique()
 
