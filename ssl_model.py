@@ -22,6 +22,9 @@ from deep_utils import (
 
 LOG = get_logger()
 
+OPT_MAX_TRIALS = 100
+OPT_EARLY_STOPPING = 10
+
 DEFAULT_SSL_CONFIG = {
     "ssl": {
         "augmentation": True,
@@ -34,7 +37,7 @@ DEFAULT_SSL_CONFIG = {
 
 DEFAULT_PARAM_GRID = {
     "learning_rate": hp.uniform("learning_rate", 1e-6, 1e-3),
-    "batch_size": hp.choice("batch_size", [100, 1000, 5000, 10000]),
+    "batch_size": hp.choice("batch_size", [100, 500, 1000]),
     "pretrained": hp.choice("pretrained", [True, False]),
 }
 
@@ -239,12 +242,12 @@ class SSLClassifier:
         class_labels,
         weights_path,
         winsec=10,
-        batch_size=10000,
+        batch_size=1000,
         pretrained=True,
         load_weights=True,
         verbose=True,
         seed=42,
-        learning_rate=0,
+        learning_rate=1e-4,
         optimisedir="",
         fold=0,
     ):
@@ -270,7 +273,7 @@ class SSLClassifier:
         self.le = le
         self.class_labels = class_labels
 
-        optimised_lr = (
+        optimised_params = (
             load_dict(optimisedir)
             if optimisedir and os.path.exists(optimisedir)
             else {}
@@ -285,10 +288,15 @@ class SSLClassifier:
             **DEFAULT_SSL_CONFIG,
         }
 
-        if learning_rate != 0:
-            cfg["ssl"]["learning_rate"] = learning_rate
-        elif optimised_lr and "learning_rate" in optimised_lr:
-            cfg["ssl"]["learning_rate"] = optimised_lr["learning_rate"]
+        cfg["ssl"]["learning_rate"] = (
+            optimised_params["learning_rate"] if optimised_params else learning_rate
+        )
+
+        self.batch_size = (
+            optimised_params["batch_size"] if optimised_params else batch_size
+        )
+
+        self.pretrained = optimised_params["pretrained"] if pretrained else pretrained
 
         self.verbose = verbose
 
@@ -302,9 +310,7 @@ class SSLClassifier:
         self.my_device = f"cuda:{GPU}" if GPU != -1 else "cpu"
 
         self.weights_path = weights_path.format(fold)
-        self.pretrained = pretrained
         self.seed = seed
-        self.batch_size = batch_size
 
         if load_weights & os.path.exists(self.weights_path):
             self.model = get_sslnet(
@@ -393,10 +399,7 @@ class SSLClassifier:
             X (np.ndarray): Input features.
             y (np.ndarray): Target class labels.
             pids (np.ndarray or None): Patient IDs corresponding to the data samples.
-            weights_path (str or None): Path to save the trained weights.
-            hmm_weights_path (str or None): Path to save the HMM weights.
             val_split (float): Fraction of data to use for validation.
-            overwrite (bool): Whether to overwrite existing weight files.
         """
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
@@ -479,7 +482,12 @@ class SSLClassifier:
         def objective(space):
             models = [
                 SSLClassifier(
-                    self.class_labels, weightsdir, fold=i, load_weights=False, **space
+                    self.class_labels,
+                    weightsdir,
+                    fold=i,
+                    load_weights=False,
+                    verbose=False,
+                    **space,
                 )
                 for i in range(3)
             ]
@@ -496,19 +504,36 @@ class SSLClassifier:
 
             return {"loss": -mean_f1, "status": STATUS_OK}
 
+        best_loss = float("inf")
+        no_improvement_count = 0
         trials = Trials()
 
-        best = fmin(
-            fn=objective,
-            space=param_grid,
-            algo=tpe.suggest,
-            max_evals=20,
-            trials=trials,
-            verbose=1,
-            rstate=np.random.default_rng(42),
-        )
+        for iteration in tqdm(range(OPT_MAX_TRIALS)):
+            best = fmin(
+                fn=objective,
+                space=param_grid,
+                algo=tpe.suggest,
+                max_evals=1,
+                trials=trials,
+                verbose=0,
+                rstate=np.random.default_rng(42),
+            )
 
-        optimised_params = space_eval(param_grid, best)
+            current_loss = trials.results[-1]["loss"]
+
+            if current_loss < best_loss:
+                best_loss = current_loss
+                best_trial = best
+                no_improvement_count = 0
+
+            else:
+                no_improvement_count += 1
+
+            if no_improvement_count >= OPT_EARLY_STOPPING:
+                print(f"Early stopping after {iteration+1} iterations.")
+                break
+
+        optimised_params = space_eval(param_grid, best_trial)
 
         save_dict(optimised_params, outdir)
 
@@ -520,7 +545,7 @@ if __name__ == "__main__":
     parser.add_argument("--datadir", "-d", default="prepared_data")
     parser.add_argument("--optimisedir", "-o", default="outputs/optimised_params")
     parser.add_argument("--weightsdir", "-w", default="outputs/model_weights")
-    parser.add_argument("--smoke_test", default=True)  # action="store_true")
+    parser.add_argument("--smoke_test", action="store_true")
     args = parser.parse_args()
 
     X = np.load(os.path.join(args.datadir, "X.npy"))

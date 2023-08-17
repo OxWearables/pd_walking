@@ -16,7 +16,7 @@ def cross_val_predict(models, X, y, groups=None, cv=5, n_jobs=None):
     X, y, groups = indexable(X, y, groups)
 
     if isinstance(cv, int):
-        cv = StratifiedGroupKFold(n_splits=cv, random_state=42)
+        cv = StratifiedGroupKFold(n_splits=cv)
 
     if len(models) != cv.get_n_splits():
         raise ValueError("cross validation requires a model for each fold")
@@ -49,7 +49,7 @@ def cross_val_score(models, X, y, groups=None, cv=5, n_jobs=None, scoring=None):
     X, y, groups = indexable(X, y, groups)
 
     if isinstance(cv, int):
-        cv = StratifiedGroupKFold(n_splits=cv, random_state=42)
+        cv = StratifiedGroupKFold(n_splits=cv)
 
     if len(models) != cv.get_n_splits():
         raise ValueError("cross validation requires a model for each fold")

@@ -37,7 +37,7 @@ def evaluate_model(
             X_test = X
 
         model = Classifier(model_type, **kwargs)
-        y_pred = fit_predict(model, X_train, y_train, X_test, **kwargs)
+        y_pred = fit_predict(model, X_train, y_train, X_test)
 
     else:
         n_splits = cv if isinstance(cv, int) else cv.get_n_splits()
@@ -59,7 +59,7 @@ def evaluate_model(
                     y_pred = y_pred[test_mask]
 
         else:
-            raise ValueError("cv must be natural number")
+            raise ValueError("number of splits must be natural number")
 
     if outFilePath:
         os.makedirs(os.path.dirname(outFilePath), exist_ok=True)
@@ -73,10 +73,11 @@ if __name__ == "__main__":
     parser.add_argument("--test_source", default="")
     parser.add_argument("--cv", type=int, default=10)
     parser.add_argument("--n_jobs", type=int, default=10)
-    parser.add_argument("--model_types", "-m", default="rf")
+    parser.add_argument("--model_types", "-m", default="rf,ssl")
     args = parser.parse_args()
 
-    X = pd.read_pickle(os.path.join(args.datadir, "X_feats.pkl")).values
+    X_raw = np.load(os.path.join(args.datadir, "X.npy"))
+    X_feats = pd.read_pickle(os.path.join(args.datadir, "X_feats.pkl")).values
     y = np.load(os.path.join(args.datadir, "Y.npy"))
     P = np.load(os.path.join(args.datadir, "P.npy"))
     S = np.load(os.path.join(args.datadir, "S.npy"))
@@ -92,6 +93,23 @@ if __name__ == "__main__":
     for model_type in args.model_types.split(","):
         fileName = f"y_pred_{model_type}_train_{train_source}_test_{test_source}.npy"
 
+        if model_type.upper() == "RF":
+            X = X_feats
+            n_jobs = args.n_jobs
+            kwargs = {
+                "optimisedir": os.path.join("outputs", "optimised_params", "rf.pkl")
+            }
+
+        elif model_type.upper() == "SSL":
+            X = X_raw
+            n_jobs = 1
+            kwargs = {
+                "class_labels": np.unique(y),
+                "weights_path": os.path.join("outputs", "model_weights", "ssl_{}.pt"),
+                "optimisedir": os.path.join("outputs", "optimised_params", "ssl.pkl"),
+                "load_weights": False,
+            }
+
         evaluate_model(
             model_type,
             X,
@@ -100,6 +118,7 @@ if __name__ == "__main__":
             train_mask,
             test_mask,
             args.cv,
-            args.n_jobs,
+            n_jobs,
             os.path.join("outputs", "predictions", fileName),
+            **kwargs,
         )

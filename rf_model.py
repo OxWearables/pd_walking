@@ -4,10 +4,13 @@ from imblearn.ensemble import BalancedRandomForestClassifier
 import numpy as np
 import os
 import pandas as pd
+from tqdm.auto import tqdm
 from utils import load_dict, save_dict
 
 from eval_utils import cross_val_score, f1_macro_score
 
+OPT_MAX_TRIALS = 100
+OPT_EARLY_STOPPING = 10
 
 DEFAULT_ATTRIBUTES = {
     "n_estimators": 3000,
@@ -83,19 +86,36 @@ class RandomForestClassifierWrapper:
 
             return {"loss": -mean_f1, "status": STATUS_OK}
 
+        best_loss = float("inf")
+        no_improvement_count = 0
         trials = Trials()
 
-        best = fmin(
-            fn=objective,
-            space=param_grid,
-            algo=tpe.suggest,
-            max_evals=20,
-            trials=trials,
-            verbose=1,
-            rstate=np.random.default_rng(42),
-        )
+        for iteration in tqdm(range(OPT_MAX_TRIALS)):
+            best = fmin(
+                fn=objective,
+                space=param_grid,
+                algo=tpe.suggest,
+                max_evals=1,
+                trials=trials,
+                verbose=0,
+                rstate=np.random.default_rng(42),
+            )
 
-        optimised_params = space_eval(param_grid, best)
+            current_loss = trials.results[-1]["loss"]
+
+            if current_loss < best_loss:
+                best_loss = current_loss
+                best_trial = best
+                no_improvement_count = 0
+
+            else:
+                no_improvement_count += 1
+
+            if no_improvement_count >= OPT_EARLY_STOPPING:
+                print(f"Early stopping after {iteration+1} iterations.")
+                break
+
+        optimised_params = space_eval(param_grid, best_trial)
 
         save_dict(optimised_params, outdir)
 

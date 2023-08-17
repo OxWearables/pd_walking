@@ -48,3 +48,33 @@ $ conda activate pd_walk
 # install pytorch packages
 $ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 ```
+
+## Running anaylsis
+
+First we must prepare the datasets.
+```bash
+$ python prepare.py --overwrite
+```
+
+Then, we optimise the parameters of the model, to produce best performance.
+Note that this step takes some time, and can be skipped.
+```bash
+# Optimise random forest model
+$ python rf_model.py
+# Optimise Resnet18 model
+$ python ssl_model.py
+```
+
+We then evaluate the models using cross validation.
+```bash
+# Evaluate train OxWalk, test OxWalk
+$ python evaluate.py --train_source oxwalk --test_source oxwalk
+# Evaluate train OxWalk, test Ldopa (no cross validation)
+$ python evaluate.py --train_source oxwalk --test_source ldopa --cv 0
+# Evaluate train Ldopa, test OxWalk (no cross validation)
+$ python evaluate.py --train_source ldopa --test_source oxwalk --cv 0
+# Evaluate train Ldopa, test Ldopa
+$ python evaluate.py --train_source ldopa --test_source ldopa
+# Evaluate train both, test both
+$ python evaluate.py
+```
