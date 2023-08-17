@@ -43,4 +43,6 @@ Before this however, we must ensure that all relevant packages are installed:
 $ conda env create -f env.yml
 # activate environment
 $ conda activate pd_walk 
+# install pytorch packages
+$ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 ```

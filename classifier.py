@@ -5,13 +5,16 @@ import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.metrics import classification_report
 
-from rf import RandomForestClassifierWrapper
+from rf_model import RandomForestClassifierWrapper
+from ssl_model import SSLClassifier
 from hmm import HMM
 
+
 class Classifier:
-    def __init__(self, model_type, seed=42, **kwargs):
+    def __init__(self, model_type, fold=0, seed=42, **kwargs):
         self.type = model_type
         self.seed = seed
+        self.cv_fold = fold
         self.window_classifier = None
         self.smoother = None
         self._initialise_model(**kwargs)
@@ -25,13 +28,18 @@ class Classifier:
         )
 
     def _initialise_model(self, **kwargs):
-        if 'RF' in self.type.upper().split('_'):
-            self.window_classifier = RandomForestClassifierWrapper(oob_score=True, random_state=self.seed, **kwargs)
+        if "RF" in self.type.upper().split("_"):
+            self.window_classifier = RandomForestClassifierWrapper(
+                oob_score=True, random_state=self.seed, **kwargs
+            )
+
+        elif "SSL" in self.type.upper().split("_"):
+            self.window_classifier = SSLClassifier(fold=self.cv_fold, **kwargs)
 
         else:
-            raise ValueError("Model type must contain 'rf'")
+            raise ValueError("Model type must contain 'rf' or 'ssl'")
 
-        if 'HMM' in self.type.upper().split('_'):
+        if "HMM" in self.type.upper().split("_"):
             self.smoother = HMM()
 
     def fit(self, X, y, groups=None):
@@ -39,12 +47,16 @@ class Classifier:
             self.window_classifier.fit(X, y)
 
         else:
-            if 'RF' in self.type.upper().split('_'):
+            if "RF" in self.type.upper().split("_"):
                 self.window_classifier.fit(X, y)
-                self.smoother.fit(self.window_classifier.model.oob_decision_function_, y, groups)
+                self.smoother.fit(
+                    self.window_classifier.model.oob_decision_function_, y, groups
+                )
 
             else:
-                gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=self.seed)
+                gss = GroupShuffleSplit(
+                    n_splits=1, test_size=0.2, random_state=self.seed
+                )
 
                 for train_idx, val_idx in gss.split(X, y, groups=groups):
                     X_train, X_val = X[train_idx], X[val_idx]
@@ -58,7 +70,6 @@ class Classifier:
 
                 self.smoother.fit(y_val_proba, y_val, group_val)
 
-
     def predict(self, X, groups=None):
         if self.smoother is None:
             return self.window_classifier.predict(X)
@@ -71,7 +82,9 @@ class Classifier:
             return self.window_classifier.predict_proba(X)
 
         else:
-            return self.smoother.predict_proba(self.window_classifier.predict(X), groups)
+            return self.smoother.predict_proba(
+                self.window_classifier.predict(X), groups
+            )
 
     def optimise(self, X, y, groups=None, **kwargs):
         self.window_classifier.optimise(X, y, groups, **kwargs)
@@ -83,15 +96,15 @@ class Smoother:
         self.model = self._initialise_model(**kwargs)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--datadir', '-d', default='prepared_data')
-    parser.add_argument('--sources', '-s', default='oxwalk')
-    parser.add_argument('--model_type', '-m', default='rf_hmm')
-    parser.add_argument('--optimisedir', '-o', default='optimised_params')
+    parser.add_argument("--datadir", "-d", default="prepared_data")
+    parser.add_argument("--sources", "-s", default="oxwalk")
+    parser.add_argument("--model_type", "-m", default="rf_hmm")
+    parser.add_argument("--optimisedir", "-o", default="optimised_params")
     args = parser.parse_args()
 
-    sources = args.sources.upper().split(',')
+    sources = args.sources.upper().split(",")
 
     X = pd.read_pickle(os.path.join(args.datadir, "X_feats.pkl")).values
     y = np.load(os.path.join(args.datadir, "Y.npy"))
