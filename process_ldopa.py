@@ -36,6 +36,8 @@ def build_metadata(datadir=RAW_DIR, processeddir=PROCESSED_DIR):
 
     metadata.to_csv(outFile)
 
+    return metadata
+
 
 def build_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
     subjects = build_task_reference_file(datadir, processeddir)["subject_id"].unique()

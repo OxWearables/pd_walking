@@ -56,8 +56,8 @@ def evaluate_model(
             if any(test_mask):
                 if any(train_mask):
                     y_pred = y_pred[test_mask[train_mask]]
-                    y_test = y[test_mask[train_mask]]
-                    groups_test = groups[test_mask[train_mask]]
+                    y_test = y[test_mask & train_mask]
+                    groups_test = groups[test_mask & train_mask]
 
                 else:
                     y_pred = y_pred[test_mask]
@@ -94,7 +94,7 @@ def evaluate_model(
         scores.to_pickle(
             os.path.join(
                 outdir,
-                f"scores_{model_type}_train_{train_source}_test_{test_source}.npy",
+                f"scores_{model_type}_train_{train_source}_test_{test_source}.pkl",
             )
         )
 
