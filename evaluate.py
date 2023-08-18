@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 import argparse
 import os
+from glob import glob
 
-from eval_utils import cross_val_predict, fit_predict
+from eval_utils import cross_val_predict, fit_predict, f1_macro_score
 from classifier import Classifier
 
 
@@ -12,14 +13,14 @@ def evaluate_model(
     X,
     y,
     groups,
-    train_mask=None,
-    test_mask=None,
+    train_mask=[],
+    test_mask=[],
     cv=0,
     n_jobs=None,
-    outFilePath="",
+    outdir="",
     **kwargs,
 ):
-    if train_mask is not None:
+    if any(train_mask):
         X_train, y_train, groups_train = (
             X[train_mask],
             y[train_mask],
@@ -30,11 +31,9 @@ def evaluate_model(
         X_train, y_train, groups_train = X, y, groups
 
     if cv == 0:
-        if test_mask is not None:
-            X_test = X[test_mask]
-
-        else:
-            X_test = X
+        X_test = X[test_mask] if any(test_mask) else X
+        y_test = y[test_mask] if any(test_mask) else y
+        groups_test = groups[test_mask] if any(test_mask) else groups
 
         model = Classifier(model_type, **kwargs)
         y_pred = fit_predict(model, X_train, y_train, X_test)
@@ -51,19 +50,64 @@ def evaluate_model(
                 models, X_train, y_train, groups_train, cv=cv, n_jobs=n_jobs
             )
 
-            if test_mask is not None:
-                if train_mask is not None:
+            if any(test_mask):
+                if any(train_mask):
                     y_pred = y_pred[test_mask[train_mask]]
+                    y_test = y[test_mask[train_mask]]
+                    groups_test = groups[test_mask[train_mask]]
 
                 else:
                     y_pred = y_pred[test_mask]
+                    y_test = y[test_mask]
+                    groups_test = groups[test_mask]
+
+            else:
+                y_test = y
+                groups_test = groups
 
         else:
             raise ValueError("number of splits must be natural number")
 
-    if outFilePath:
-        os.makedirs(os.path.dirname(outFilePath), exist_ok=True)
-        np.save(outFilePath, y_pred)
+    scores = pd.Series(
+        [
+            f1_macro_score(y_test[groups_test == group], y_pred[groups_test == group])
+            for group in np.unique(groups_test)
+        ],
+        index=np.unique(groups_test),
+    )
+
+    if outdir:
+        train_source = "".join(train_source) or "all"
+        test_source = "".join(test_source) or "all"
+
+        os.makedirs(outdir, exist_ok=True)
+        np.save(
+            os.path.join(
+                outdir,
+                f"y_pred_{model_type}_train_{train_source}_test_{test_source}.npy",
+            ),
+            y_pred,
+        )
+        scores.to_pickle(
+            os.path.join(
+                outdir,
+                f"scores_{model_type}_train_{train_source}_test_{test_source}.npy",
+            )
+        )
+
+
+def join_scores(predictdir):
+    df = pd.concat(
+        {
+            os.path.basename(file).split(".")[0]: pd.read_pickle(file)
+            for file in glob(os.path.join(predictdir, "*.pkl"))
+        },
+        axis=1,
+    )
+
+    df.to_pickle(os.path.join(predictdir, "all_scores.pkl"))
+
+    return df
 
 
 if __name__ == "__main__":
@@ -87,12 +131,7 @@ if __name__ == "__main__":
     train_mask = np.isin(S, train_source) if args.train_source else None
     test_mask = np.isin(S, test_source) if args.test_source else None
 
-    train_source = "".join(train_source) or "all"
-    test_source = "".join(test_source) or "all"
-
     for model_type in args.model_types.split(","):
-        fileName = f"y_pred_{model_type}_train_{train_source}_test_{test_source}.npy"
-
         if model_type.upper() == "RF":
             X = X_feats
             n_jobs = args.n_jobs
@@ -119,6 +158,6 @@ if __name__ == "__main__":
             test_mask,
             args.cv,
             n_jobs,
-            os.path.join("outputs", "predictions", fileName),
+            os.path.join("outputs", "predictions"),
             **kwargs,
         )

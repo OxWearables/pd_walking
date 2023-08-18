@@ -13,6 +13,11 @@ N_JOBS = 8
 
 
 def build_metadata(datadir=RAW_DIR, processeddir=PROCESSED_DIR):
+    outFile = os.path.join(processeddir, "Metadata.csv")
+
+    if os.path.exists(outFile):
+        return pd.read_csv(outFile, index_col=[0])
+
     metadata = pd.read_csv(
         os.path.join(datadir, "MetadataOfPatientOnboarding.csv"), index_col=[0]
     )
@@ -29,7 +34,7 @@ def build_metadata(datadir=RAW_DIR, processeddir=PROCESSED_DIR):
 
     metadata = metadata[["gender", "MeanUPDRS"]]
 
-    metadata.to_csv(os.path.join(processeddir, "Metadata.csv"))
+    metadata.to_csv(outFile)
 
 
 def build_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):

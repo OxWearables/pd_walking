@@ -78,3 +78,8 @@ $ python evaluate.py --train_source ldopa --test_source ldopa
 # Evaluate train both, test both
 $ python evaluate.py
 ```
+
+Finally, we wish to visualise the association between model performance and UPDRS
+```bash
+$ python visualise.py
+```
