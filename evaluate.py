@@ -13,13 +13,16 @@ def evaluate_model(
     X,
     y,
     groups,
-    train_mask=[],
-    test_mask=[],
+    train_source=[],
+    test_source=[],
     cv=0,
     n_jobs=None,
     outdir="",
     **kwargs,
 ):
+    train_mask = np.isin(S, train_source) if any(train_source) else []
+    test_mask = np.isin(S, test_source) if any(test_source) else []
+
     if any(train_mask):
         X_train, y_train, groups_train = (
             X[train_mask],
@@ -126,11 +129,6 @@ if __name__ == "__main__":
     P = np.load(os.path.join(args.datadir, "P.npy"))
     S = np.load(os.path.join(args.datadir, "S.npy"))
 
-    train_source = args.train_source.upper().split(",")
-    test_source = args.test_source.upper().split(",")
-    train_mask = np.isin(S, train_source) if args.train_source else None
-    test_mask = np.isin(S, test_source) if args.test_source else None
-
     for model_type in args.model_types.split(","):
         if model_type.upper() == "RF":
             X = X_feats
@@ -154,8 +152,8 @@ if __name__ == "__main__":
             X,
             y,
             P,
-            train_mask,
-            test_mask,
+            args.train_source.upper().split(","),
+            args.test_source.upper().split(","),
             args.cv,
             n_jobs,
             os.path.join("outputs", "predictions"),
