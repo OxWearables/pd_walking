@@ -22,7 +22,7 @@ if __name__ == "__main__":
     dfm = df.melt("MeanUPDRS", var_name="Models", value_name="Macro F1 score")
     dfm.dropna(inplace=True)
 
-    g = sns.lmplot(dfm, x="MeanUPDRS", y="Macro F1 score", hue="Models")
+    g = sns.lmplot(dfm, x="MeanUPDRS", y="Macro F1 score", hue="Models", ci=None)
 
     os.makedirs(args.outdir, exist_ok=True)
     plt.savefig(os.path.join(args.outdir, "main.png"))

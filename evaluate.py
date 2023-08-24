@@ -3,8 +3,9 @@ import pandas as pd
 import argparse
 import os
 from glob import glob
+from sklearn.metrics import f1_score
 
-from eval_utils import cross_val_predict, fit_predict, f1_macro_score
+from eval_utils import cross_val_predict, fit_predict
 from classifier import Classifier
 
 
@@ -73,7 +74,7 @@ def evaluate_model(
 
     scores = pd.Series(
         [
-            f1_macro_score(y_test[groups_test == group], y_pred[groups_test == group])
+            f1_score(y_test[groups_test == group], y_pred[groups_test == group])
             for group in np.unique(groups_test)
         ],
         index=np.unique(groups_test),
@@ -102,8 +103,9 @@ def evaluate_model(
 def join_scores(predictdir):
     df = pd.concat(
         {
-            os.path.basename(file).split(".")[0]: pd.read_pickle(file)
+            os.path.basename(file).split(".")[0]: pd.Series(pd.read_pickle(file))
             for file in glob(os.path.join(predictdir, "*.pkl"))
+            if "all_scores.pkl" not in file
         },
         axis=1,
     )
@@ -140,9 +142,15 @@ if __name__ == "__main__":
         elif model_type.upper() == "SSL":
             X = X_raw
             n_jobs = 1
+            train_label = "".join(args.train_source) or "all"
+            test_label = "".join(args.test_source) or "all"
             kwargs = {
                 "class_labels": np.unique(y),
-                "weights_path": os.path.join("outputs", "model_weights", "ssl_{}.pt"),
+                "weights_path": os.path.join(
+                    "outputs",
+                    "model_weights",
+                    f"ssl_{train_label}_{test_label}_{{}}.pt",
+                ),
                 "optimisedir": os.path.join("outputs", "optimised_params", "ssl.pkl"),
                 "load_weights": False,
             }
