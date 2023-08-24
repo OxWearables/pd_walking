@@ -7,6 +7,16 @@ import pandas as pd
 from evaluate import join_scores
 from process_ldopa import build_metadata
 
+
+def performance_table():
+    my_scores = pd.read_pickle("outputs/predictions/all_scores.pkl")
+    my_scores["source"] = [
+        "OxWalk" if "wrist" in pid else "Ldopa" for pid in my_scores.index
+    ]
+    scores = my_scores.groupby(["source"]).mean()
+    scores.to_csv("outputs/predictions/performance_table.csv")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--datadir", "-d", default="outputs/predictions")
