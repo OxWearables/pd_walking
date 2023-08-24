@@ -74,7 +74,11 @@ def evaluate_model(
 
     scores = pd.Series(
         [
-            f1_score(y_test[groups_test == group], y_pred[groups_test == group])
+            f1_score(
+                y_test[groups_test == group],
+                y_pred[groups_test == group],
+                pos_label="walking",
+            )
             for group in np.unique(groups_test)
         ],
         index=np.unique(groups_test),
