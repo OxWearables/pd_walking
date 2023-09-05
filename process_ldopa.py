@@ -163,7 +163,7 @@ def get_patient_folder(subject_id):
         raise AssertionError("Invalid subject id")
 
 
-def label_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
+def label_acc_data(label, datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
     taskRefFile = build_task_reference_file(datadir, processeddir)
     subjects = taskRefFile["subject_id"].unique()
 
@@ -176,7 +176,7 @@ def label_acc_data(datadir=RAW_DIR, processeddir=PROCESSED_DIR, n_jobs=N_JOBS):
 
         Parallel(n_jobs=n_jobs)(
             delayed(label_participant_data)(
-                subject, taskRefFile, taskDictionary, accdir, outdir
+                subject, taskRefFile, taskDictionary, accdir, outdir, label
             )
             for subject in tqdm(subjects)
         )
@@ -197,6 +197,9 @@ def build_task_dictionary(datadir=RAW_DIR, outdir=PROCESSED_DIR):
         taskDictionary["is-walking"] = taskDictionary["description"].apply(
             is_walking_given_description
         )
+        taskDictionary["activity"] = taskDictionary["task_code"].apply(
+            activity_given_task_code
+        )
         taskDictionary.set_index("task_code", inplace=True)
         taskDictionary.to_csv(processedDictionaryPath)
 
@@ -204,10 +207,30 @@ def build_task_dictionary(datadir=RAW_DIR, outdir=PROCESSED_DIR):
 
 
 def is_walking_given_description(description):
-    return 1 * (("WALKING" in description.upper()) or ("STAIRS" in description.upper()))
+    return (
+        "walking"
+        if (("WALKING" in description.upper()) or ("STAIRS" in description.upper()))
+        else "not-walking"
+    )
 
 
-def label_participant_data(subject, taskRefFile, taskDictionary, accdir, outdir):
+def activity_given_task_code(task_code):
+    if "wlkg" in task_code:
+        return "wlkg"
+
+    elif "ftn" in task_code:
+        return "ftn"
+
+    elif "ram" in task_code:
+        return "ram"
+
+    else:
+        return task_code
+
+
+def label_participant_data(
+    subject, taskRefFile, taskDictionary, accdir, outdir, label="is-walking"
+):
     os.makedirs(outdir, exist_ok=True)
     labelFilePath = os.path.join(outdir, f"{subject}.csv")
     accFilePath = os.path.join(accdir, f"{subject}.csv")
@@ -218,13 +241,15 @@ def label_participant_data(subject, taskRefFile, taskDictionary, accdir, outdir)
         participantTasks = taskRefFile[taskRefFile["subject_id"] == subject]
 
         accFile["annotation"] = -1
+        accFile["day"] = -1
 
         for _, task in participantTasks.iterrows():
             startTime, endTime = task[["timestamp_start", "timestamp_end"]]
             mask = (accFile.index > startTime) & (accFile.index <= endTime)
             accFile.loc[mask, "annotation"] = taskDictionary.loc[
-                task["task_code"], "is-walking"
+                task["task_code"], label
             ]
+            accFile.loc[mask, "day"] = task["participant_day"]
 
         walkingLabels = accFile["annotation"]
         walkingLabels.to_csv(labelFilePath)

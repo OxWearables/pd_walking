@@ -30,7 +30,7 @@ SOURCE_ARGS = {
         },
     },
     "LDOPA": {
-        "load_data_args": {"sample_rate": 50},
+        "load_data_args": {"sample_rate": 50, "annot_type": str},
         "make_windows_args": {"sample_rate": 50, "label_type": "mode"},
     },
 }
@@ -89,7 +89,7 @@ def download_oxwalk(datadir, overwrite=False):
         print(f'Using saved OxWalk data at "{datadir}".')
 
 
-def download_ldopa(datadir, overwrite=False, n_jobs=10):
+def download_ldopa(datadir, annot_label="is-walking", overwrite=False, n_jobs=10):
     ldopa_datadir = os.path.join(datadir, "LDOPA_DATA")
     if overwrite or (
         len(glob(os.path.join(ldopa_datadir, "*.csv"))) < len(LDOPA_DOWNLOADS)
@@ -127,7 +127,7 @@ def download_ldopa(datadir, overwrite=False, n_jobs=10):
     processeddir = os.path.join(datadir, "Ldopa_Processed")
     build_metadata(ldopa_datadir, processeddir)
     build_acc_data(ldopa_datadir, processeddir, n_jobs)
-    label_acc_data(ldopa_datadir, processeddir, n_jobs)
+    label_acc_data(annot_label, ldopa_datadir, processeddir, n_jobs)
 
 
 def load_data(datafile, sample_rate=100, index_col="timestamp", annot_type="int"):
@@ -167,7 +167,7 @@ def make_windows(
     verbose=False,
     step_tol=0.4,
 ):
-    X, Y, T = [], [], []
+    X, Y, T, D = [], [], [], []
 
     for t, w in tqdm(data.resample(f"{winsec}s", origin="start"), disable=not verbose):
         if len(w) < 1:
@@ -193,10 +193,12 @@ def make_windows(
                 warnings.filterwarnings("ignore", message="Unable to sort modes")
                 mode_label = annot.mode(dropna=False).iloc[0]
 
-                if mode_label == -1:
+                if mode_label == -1 or mode_label == "-1":
                     continue
 
-                y = "walking" if mode_label == 1 else "not-walking"
+                y = mode_label
+
+                d = w["day"].mode(dropna=False).iloc[0] if "day" in w.columns else 1
 
         if dropna and pd.isna(y):
             continue
@@ -204,15 +206,17 @@ def make_windows(
         X.append(x)
         Y.append(y)
         T.append(t)
+        D.append(d)
 
     X = np.stack(X)
     Y = np.stack(Y)
     T = np.stack(T)
+    D = np.stack(D)
 
     if resample_rate != sample_rate:
         X = resize(X, int(resample_rate * winsec))
 
-    return X, Y, T
+    return X, Y, T, D
 
 
 def is_good_window(x, sample_rate, winsec):
@@ -238,12 +242,12 @@ def load_all_and_make_windows(
         print(f'Using files saved at "{outdir}".')
         return
 
-    X, Y, T, P, S = (), (), (), (), ()
+    X, Y, T, D, P, S = (), (), (), (), (), ()
 
     for source in sources:
         datafiles = glob(os.path.join(datadir, DATAFILES[source]))
 
-        Xs, Ys, Ts, Ps = zip(
+        Xs, Ys, Ts, Ds, Ps = zip(
             *Parallel(n_jobs=n_jobs)(
                 delayed(load_and_make_windows)(datafile, source)
                 for datafile in tqdm(
@@ -255,12 +259,14 @@ def load_all_and_make_windows(
         X += Xs
         Y += Ys
         T += Ts
+        D += Ds
         P += Ps
         S += (source,) * len(np.hstack(Ys))
 
     X = np.vstack(X)
     Y = np.hstack(Y)
     T = np.hstack(T)
+    D = np.hstack(D)
     P = np.hstack(P)
     S = np.hstack(S)
 
@@ -273,6 +279,7 @@ def load_all_and_make_windows(
     os.makedirs(outdir, exist_ok=True)
     np.save(os.path.join(outdir, "X.npy"), X)
     np.save(os.path.join(outdir, "Y.npy"), Y)
+    np.save(os.path.join(outdir, "day.npy"), D)
     np.save(os.path.join(outdir, "T.npy"), T)
     np.save(os.path.join(outdir, "P.npy"), P)
     np.save(os.path.join(outdir, "S.npy"), S)
@@ -280,7 +287,7 @@ def load_all_and_make_windows(
 
 
 def load_and_make_windows(datafile, source):
-    X, Y, T = make_windows(
+    X, Y, T, D = make_windows(
         load_data(datafile, **SOURCE_ARGS[source]["load_data_args"]),
         **SOURCE_ARGS[source]["make_windows_args"],
     )
@@ -294,14 +301,15 @@ def load_and_make_windows(datafile, source):
 
     P = np.array([pid] * len(X))
 
-    return X, Y, T, P
+    return X, Y, T, D, P
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--datadir", "-d", default="data")
-    parser.add_argument("--outdir", "-o", default="prepared_data")
-    parser.add_argument("--sources", "-s", default="oxwalk,ldopa")
+    parser.add_argument("--outdir", "-o", default="prepared_data/activity")
+    parser.add_argument("--sources", "-s", default="ldopa")
+    parser.add_argument("--annot", "-a", default="activity")
     parser.add_argument("--n_jobs", type=int, default=10)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
@@ -312,7 +320,7 @@ if __name__ == "__main__":
         download_oxwalk(args.datadir, args.overwrite)
 
     if "LDOPA" in sources:
-        download_ldopa(args.datadir, args.overwrite, args.n_jobs)
+        download_ldopa(args.datadir, args.annot, args.overwrite, args.n_jobs)
 
     load_all_and_make_windows(
         args.datadir, args.outdir, args.n_jobs, sources, args.overwrite
