@@ -20,7 +20,6 @@ def extract_features(xyz, sample_rate=100):
     feats = {}
 
     v = np.linalg.norm(xyz, axis=1)
-    v = median_filter(v, size=5, mode="nearest")
     v = v - 1  # detrend: "remove gravity"
     v = np.clip(v, -2, 2)  # clip abnormaly high values
 
