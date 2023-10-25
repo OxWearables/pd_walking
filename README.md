@@ -49,6 +49,18 @@ $ conda activate pd_walk
 $ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 ```
 
+This repo makes use of a `.env` file to store private usernames and keys to access data using synapse.
+In the same repository as this file, create a `.env` file containing:
+
+```
+SYNAPSE_USERNAME = "<user_name>"
+SYNAPSE_APIKEY = "<api_key>"
+```
+replacing <user_name> and <api_key> with appropriate text from your synapse account.
+
+Note: Running the full pipeline of this repo requires access to the MJFF-LR dataset.
+Instructions for getting access to this dataset can be found at [https://www.synapse.org/#!Synapse:syn20681023/wiki/594679](https://www.synapse.org/#!Synapse:syn20681023/wiki/594679).
+
 ## Running anaylsis
 
 First we must prepare the datasets.
@@ -83,3 +95,9 @@ Finally, we wish to visualise the association between model performance and UPDR
 ```bash
 $ python visualise.py
 ```
+
+## Licence
+See [LICENCE.md](LICENCE.md).
+
+## Acknowledgements
+We would like to thank all our code contributors and research participants for their help in making this work possible.
