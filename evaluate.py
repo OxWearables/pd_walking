@@ -121,7 +121,7 @@ def join_scores(predictdir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--datadir", "-d", default="prepared_data")
+    parser.add_argument("--datadir", "-d", default="prepared_data/both")
     parser.add_argument("--train_source", default="")
     parser.add_argument("--test_source", default="")
     parser.add_argument("--cv", type=int, default=10)
