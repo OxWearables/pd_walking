@@ -177,6 +177,8 @@ def make_windows(
 
         x = w[["x", "y", "z"]].to_numpy()
 
+        d = 1
+
         annot = w["annotation"]
 
         if pd.isna(annot).all():  # skip if annotation is NA
@@ -307,9 +309,9 @@ def load_and_make_windows(datafile, source):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--datadir", "-d", default="data")
-    parser.add_argument("--outdir", "-o", default="prepared_data/activity")
-    parser.add_argument("--sources", "-s", default="ldopa")
-    parser.add_argument("--annot", "-a", default="activity")
+    parser.add_argument("--outdir", "-o", default="prepared_data/both")
+    parser.add_argument("--sources", "-s", default="ldopa,oxwalk")
+    parser.add_argument("--annot", "-a", default="is-walking")
     parser.add_argument("--n_jobs", type=int, default=10)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
